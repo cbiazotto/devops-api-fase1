@@ -152,25 +152,4 @@ terraform destroy
 
 > Em ambiente acadêmico AWS, confira os recursos permitidos e encerre/destrua recursos quando não estiver usando.
 
-## Publicação no GitHub
 
-Depois de criar um repositório vazio no GitHub:
-
-```bash
-git init
-git add .
-git commit -m "feat: fase 1 devops com CI e Terraform"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/devops-api-fase1.git
-git push -u origin main
-```
-
-Após o `push`, abra a aba **Actions** do GitHub para verificar o pipeline.
-
-## Link do repositório
-
-Substitua após publicar:
-
-```text
-https://github.com/SEU_USUARIO/devops-api-fase1
-```
