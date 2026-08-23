@@ -1,0 +1,60 @@
+name: CI - Build, Testes e Validação IaC
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build e testes automatizados
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Executar build/validação sintática
+        run: npm run build
+
+      - name: Executar testes automatizados
+        run: npm test
+
+  terraform-validate:
+    name: Validar Infraestrutura como Código
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Verificar formatação
+        working-directory: terraform
+        run: terraform fmt -check
+
+      - name: Inicializar Terraform sem backend remoto
+        working-directory: terraform
+        run: terraform init -backend=false
+
+      - name: Validar scripts Terraform
+        working-directory: terraform
+        run: terraform validate
