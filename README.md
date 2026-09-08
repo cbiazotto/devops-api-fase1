@@ -24,8 +24,6 @@ O repositório demonstra três elementos principais da fase:
 │   ├── main.tf
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
-├── docs/
-│   └── EVIDENCIAS.md
 ├── .gitignore
 ├── package.json
 ├── package-lock.json
