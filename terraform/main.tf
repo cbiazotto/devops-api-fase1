@@ -26,11 +26,11 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_security_group" "app" {
   name        = "${var.project_name}-sg"
-  description = "Security Group da API acadêmica"
+  description = "Security Group da API academica"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description = "Acesso HTTP à API"
+    description = "Acesso HTTP a API"
     from_port   = var.application_port
     to_port     = var.application_port
     protocol    = "tcp"
@@ -38,7 +38,7 @@ resource "aws_security_group" "app" {
   }
 
   egress {
-    description = "Saída para Internet"
+    description = "Saida para Internet"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

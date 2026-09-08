@@ -28,6 +28,7 @@ O repositório demonstra três elementos principais da fase:
 │   └── EVIDENCIAS.md
 ├── .gitignore
 ├── package.json
+├── package-lock.json
 └── README.md
 ```
 
@@ -45,7 +46,7 @@ API simples em **Node.js + Express**.
 
 ## Executar localmente
 
-Requer Node.js 20+.
+Requer Node.js 22+ (o `package-lock.json` versionado garante instalação reproduzível com `npm ci`).
 
 ```bash
 npm install
@@ -97,8 +98,8 @@ O GitHub Actions executa automaticamente em:
 ### Job 1 — Build e testes
 
 1. checkout do código;
-2. configuração do Node.js 20;
-3. instalação das dependências;
+2. configuração do Node.js 22 (com cache do npm baseado no `package-lock.json`);
+3. instalação das dependências com `npm ci`;
 4. execução do build/validação sintática;
 5. execução dos testes automatizados.
 
