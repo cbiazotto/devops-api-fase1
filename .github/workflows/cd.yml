@@ -1,0 +1,197 @@
+name: CD - Entrega Contínua
+
+# Disparado automaticamente quando o workflow de CI termina com sucesso na main.
+# Também pode ser executado manualmente (workflow_dispatch).
+on:
+  workflow_run:
+    workflows: ["CI - Build, Testes e Validação IaC"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+jobs:
+  build-push:
+    name: Build e publicação da imagem Docker
+    # Só continua se o CI passou (ou se foi disparado manualmente).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tags.outputs.image }}
+      sha: ${{ steps.tags.outputs.sha }}
+
+    steps:
+      - name: Checkout do commit aprovado pelo CI
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Definir tags da imagem
+        id: tags
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          SHORT="${SHA::7}"
+          IMAGE="${REGISTRY}/${IMAGE_NAME}:sha-${SHORT}"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHORT}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Imagem: ${IMAGE}"
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push da imagem
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.image }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.revision=${{ steps.tags.outputs.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan de vulnerabilidades da imagem (relatório)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ steps.tags.outputs.image }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Bloquear vulnerabilidades CRÍTICAS com correção disponível
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ steps.tags.outputs.image }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true
+
+      - name: Resumo da publicação
+        run: |
+          {
+            echo "## Imagem publicada"
+            echo ""
+            echo "- Imagem: \`${{ steps.tags.outputs.image }}\`"
+            echo "- Também marcada como: \`${REGISTRY}/${IMAGE_NAME}:latest\`"
+            echo "- Commit: \`${{ steps.tags.outputs.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-staging:
+    name: Deploy em staging e smoke test
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+
+    steps:
+      - name: Checkout do commit aprovado pelo CI
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build-push.outputs.sha }}
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Subir a API e o Prometheus com Docker Compose
+        env:
+          IMAGE: ${{ needs.build-push.outputs.image }}
+        run: docker compose --profile monitoring up -d --no-build --wait --wait-timeout 90
+
+      - name: Executar smoke test na API
+        run: bash scripts/smoke-test.sh http://localhost:3000
+
+      - name: Verificar coleta de métricas pelo Prometheus
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:9090/api/v1/targets | grep -q '"health":"up"'; then
+              echo "Prometheus está coletando /metrics da API"
+              curl -fsS 'http://localhost:9090/api/v1/query?query=http_requests_total' | head -c 600; echo
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Prometheus não conseguiu coletar a API"; exit 1
+
+      - name: Exibir estado e logs dos containers
+        if: always()
+        env:
+          IMAGE: ${{ needs.build-push.outputs.image }}
+        run: |
+          docker compose --profile monitoring ps
+          echo "--- logs da API (JSON por requisição) ---"
+          docker compose logs --no-log-prefix api
+
+      - name: Encerrar o ambiente de staging
+        if: always()
+        env:
+          IMAGE: ${{ needs.build-push.outputs.image }}
+        run: docker compose --profile monitoring down -v
+
+  deploy-production:
+    name: Deploy em produção (EC2 via SSH)
+    needs: [build-push, deploy-staging]
+    # Só executa quando o servidor está configurado nas variáveis do repositório.
+    if: ${{ vars.DEPLOY_HOST != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: http://${{ vars.DEPLOY_HOST }}:3000
+
+    steps:
+      - name: Checkout do commit aprovado pelo CI
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build-push.outputs.sha }}
+
+      - name: Executar script de deploy no servidor
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER || 'ubuntu' }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ vars.DEPLOY_PORT || 22 }}
+          envs: IMAGE,TARGET_SHA,GHCR_USER,GHCR_TOKEN
+          script: |
+            set -e
+            cd /opt/devops-api
+            git fetch --quiet origin
+            git checkout --quiet "$TARGET_SHA"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            bash deploy/deploy.sh "$IMAGE"
+        env:
+          IMAGE: ${{ needs.build-push.outputs.image }}
+          TARGET_SHA: ${{ needs.build-push.outputs.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test externo contra a produção
+        run: bash scripts/smoke-test.sh http://${{ vars.DEPLOY_HOST }}:3000
