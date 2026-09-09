@@ -1,31 +1,42 @@
 {
   "name": "devops-api-fase1",
-  "version": "1.0.0",
-  "description": "Projeto acadêmico da Fase 1 da disciplina DevOps na Prática: CI com GitHub Actions, testes automatizados e IaC com Terraform.",
+  "version": "1.1.0",
+  "description": "Projeto acadêmico da disciplina DevOps na Prática: CI/CD com GitHub Actions, testes automatizados, containers Docker, monitoramento e IaC com Terraform.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "build": "node --check src/app.js && node --check src/server.js && node --check tests/app.test.js",
     "test": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+    "audit": "npm audit --audit-level=high",
+    "docker:build": "docker build -t devops-api-fase1:local .",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "smoke": "bash scripts/smoke-test.sh"
   },
   "keywords": [
     "devops",
     "ci",
+    "cd",
     "github-actions",
+    "docker",
     "terraform",
     "iac",
     "nodejs",
-    "express"
+    "express",
+    "prometheus"
   ],
   "author": "Cristian",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "express": "4.18.3"
+    "express": "4.22.2"
   },
   "devDependencies": {
     "jest": "29.7.0",
-    "supertest": "6.3.4"
+    "supertest": "7.2.2"
   },
   "jest": {
     "testEnvironment": "node",
