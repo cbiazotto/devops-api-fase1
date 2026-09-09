@@ -1,0 +1,57 @@
+# Orquestração local e de servidor único com Docker Compose.
+#
+#   Desenvolvimento (constrói a imagem localmente):
+#     docker compose up --build -d
+#
+#   Servidor / staging (usa a imagem publicada no GHCR, sem build):
+#     IMAGE=ghcr.io/cbiazotto/devops-api-fase1:sha-abc1234 docker compose up -d --no-build
+#
+#   Com monitoramento (Prometheus em http://localhost:9090):
+#     docker compose --profile monitoring up -d
+
+name: devops-api-fase1
+
+services:
+  api:
+    image: ${IMAGE:-devops-api-fase1:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devops-api
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    # Endurecimento: sem escalada de privilégios e sistema de arquivos somente leitura.
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Logs JSON com rotação, lidos com `docker compose logs -f api`.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    container_name: devops-prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

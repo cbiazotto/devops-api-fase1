@@ -1,0 +1,21 @@
+# Somente package.json, package-lock.json e src/ entram na imagem.
+node_modules
+npm-debug.log*
+coverage
+.git
+.github
+.idea
+.vscode
+.env
+.deploy-state*
+tests
+terraform
+deploy
+scripts
+monitoring
+docs
+docker-compose*.yml
+Dockerfile
+.dockerignore
+.gitignore
+*.md

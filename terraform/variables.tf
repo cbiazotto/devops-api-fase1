@@ -21,3 +21,15 @@ variable "application_port" {
   type        = number
   default     = 3000
 }
+
+variable "repository_url" {
+  description = "URL do repositório Git clonado na instância; contém o docker-compose.yml e os scripts de deploy."
+  type        = string
+  default     = "https://github.com/cbiazotto/devops-api-fase1.git"
+}
+
+variable "container_image" {
+  description = "Imagem Docker da API, publicada pelo pipeline de CD no GitHub Container Registry, executada ao iniciar a instância."
+  type        = string
+  default     = "ghcr.io/cbiazotto/devops-api-fase1:latest"
+}

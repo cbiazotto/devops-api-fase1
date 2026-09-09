@@ -59,13 +59,19 @@ resource "aws_instance" "app" {
   subnet_id              = tolist(data.aws_subnets.default.ids)[0]
   vpc_security_group_ids = [aws_security_group.app.id]
 
+  # Bootstrap do servidor: clona o repositório, instala o Docker e sobe a API
+  # em container a partir da imagem publicada pelo pipeline de CD.
   user_data = <<-EOF
     #!/bin/bash
     set -e
+    export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
-    apt-get install -y nodejs npm git
-    mkdir -p /opt/devops-api
-    echo "Infraestrutura da Fase 1 provisionada com Terraform." > /opt/devops-api/README.txt
+    apt-get install -y git curl
+    git clone ${var.repository_url} /opt/devops-api
+    chown -R ubuntu:ubuntu /opt/devops-api
+    bash /opt/devops-api/deploy/install-docker.sh
+    cd /opt/devops-api
+    IMAGE=${var.container_image} PORT=${var.application_port} bash deploy/deploy.sh
   EOF
 
   tags = {

@@ -12,6 +12,10 @@ crash.log
 *.tfvars
 !terraform.tfvars.example
 
+# Estado local dos scripts de deploy (imagem atual/anterior)
+.deploy-state
+.deploy-state.previous
+
 # Sistema/IDE
 .DS_Store
 .vscode/

@@ -17,3 +17,8 @@ output "security_group_id" {
   description = "ID do Security Group criado para a API."
   value       = aws_security_group.app.id
 }
+
+output "container_image" {
+  description = "Imagem Docker executada na instância ao iniciar."
+  value       = var.container_image
+}

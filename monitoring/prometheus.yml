@@ -1,0 +1,12 @@
+# Configuração mínima do Prometheus: coleta as métricas expostas pela API em /metrics.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: devops-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:3000"]
+        labels:
+          service: devops-api-fase1
