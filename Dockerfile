@@ -23,6 +23,13 @@ LABEL org.opencontainers.image.title="devops-api-fase1" \
 ENV NODE_ENV=production \
     PORT=3000
 
+# Endurecimento: aplica as correções de segurança dos pacotes do Alpine e remove
+# npm/npx/corepack, que não são necessários em tempo de execução (reduz a
+# superfície de ataque e as vulnerabilidades apontadas pelo Trivy).
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+              /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules

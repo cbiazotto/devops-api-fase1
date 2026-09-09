@@ -81,15 +81,26 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
 
-      - name: Bloquear vulnerabilidades CRÍTICAS com correção disponível
+      - name: Listar vulnerabilidades CRÍTICAS com correção disponível
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.tags.outputs.image }}
-          format: table
+          format: json
+          output: trivy-critical.json
           severity: CRITICAL
           ignore-unfixed: true
-          exit-code: "1"
+          exit-code: "0"
           skip-setup-trivy: true
+
+      - name: Bloquear a entrega se houver vulnerabilidade CRÍTICA corrigível
+        run: |
+          COUNT=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy-critical.json)
+          echo "Vulnerabilidades CRITICAL com correção disponível: ${COUNT}"
+          if [ "$COUNT" -gt 0 ]; then
+            jq -r '.Results[]?.Vulnerabilities[]? | "::error title=Trivy CRITICAL::\(.VulnerabilityID) em \(.PkgName) \(.InstalledVersion) (corrigido em \(.FixedVersion)) - \(.Title // "")"' trivy-critical.json
+            exit 1
+          fi
+          echo "::notice title=Trivy::Nenhuma vulnerabilidade CRITICAL corrigível na imagem"
 
       - name: Resumo da publicação
         run: |
